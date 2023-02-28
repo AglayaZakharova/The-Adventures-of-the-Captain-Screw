@@ -64,7 +64,7 @@ class World:
     def draw(self):
         for tile in self.tile_list:
             screen.blit(tile[0], tile[1])
-            pygame.draw.rect(screen, (255, 255, 255), tile[1], 1)
+            # pygame.draw.rect(screen, (255, 255, 255), tile[1], 1)
 
 
 # Класс игрока
@@ -166,7 +166,7 @@ class Player:
 
         # Помещаем игрока на экран
         screen.blit(self.image, self.rect)
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
+        # pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -186,7 +186,7 @@ class Enemy(pygame.sprite.Sprite):
         if self.rect.left == 0:
             self.move_direction *= -1
 
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
+        # pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
 
 world_data = [
@@ -223,7 +223,7 @@ while run:
     enemy_group.update()
     enemy_group.draw(screen)
     world.draw()
-    draw_grid()
+    # draw_grid()
     player.update()
 
     for event in pygame.event.get():
