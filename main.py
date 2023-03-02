@@ -15,12 +15,17 @@ bg_img = pygame.image.load('images/Background.png')
 restart_img = pygame.image.load('images/Restart_btn.png')
 restart_img1 = pygame.transform.scale(restart_img, (270, 80))
 menu_frame_img = pygame.image.load('images/Menu_frame.png')
+start_img = pygame.image.load('images/Start_btn.png')
+exit_img = pygame.image.load('images/Exit_btn.png')
+
 
 # Настройка сетки (нужна для удобного построения уровня)
 tile_width = 64
 tile_height = 48
 
 game_over = 0
+
+main_menu = True
 
 
 def draw_grid():
@@ -62,6 +67,11 @@ class World:
                 elif tile == 6:
                     acid = Acid(col_count * tile_width, row_count * tile_height + tile_height // 2)
                     acid_group.add(acid)
+                    col_count += 1
+                    continue
+                elif tile == 7:
+                    grass = Grass(col_count * tile_width, row_count * tile_height)
+                    grass_group.add(grass)
                     col_count += 1
                     continue
                 else:
@@ -126,11 +136,17 @@ class Player:
             if not key[pygame.K_SPACE]:
                 self.jumped = False
             if key[pygame.K_LEFT]:
-                dx -= 3
+                if self.speed_change:
+                    dx -= 1
+                else:
+                    dx -= 3
                 self.counter += 1
                 self.direction = -1
             if key[pygame.K_RIGHT]:
-                dx += 3
+                if self.speed_change:
+                    dx += 1
+                else:
+                    dx += 3
                 self.counter += 1
                 self.direction = 1
             if not key[pygame.K_LEFT] and not key[pygame.K_RIGHT]:
@@ -197,6 +213,11 @@ class Player:
             # Проверяем столкновение с кислотой
             if pygame.sprite.spritecollide(self, acid_group, False):
                 game_over = -1
+            # Проверяем столкновение с травой
+            if pygame.sprite.spritecollide(self, grass_group, False):
+                self.speed_change = True
+            else:
+                self.speed_change = False
         elif game_over == -1:
             self.image = self.dead_image
             if self.rect.y > 50:
@@ -233,6 +254,7 @@ class Player:
         self.jumped = False
         self.direction = 0
         self.in_air = True
+        self.speed_change = False
 
 # Класс врагов
 class Enemy(pygame.sprite.Sprite):
@@ -249,7 +271,7 @@ class Enemy(pygame.sprite.Sprite):
     def update(self):
         self.rect.x += self.move_direction
         self.move_counter += 1
-        if self.move_counter == 80:
+        if self.move_counter == 60:
             self.move_direction *= -1
             self.move_counter *= -1
 
@@ -277,6 +299,7 @@ class Star(pygame.sprite.Sprite):
         pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
 
+# Класс кислоты
 class Acid(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
@@ -286,11 +309,20 @@ class Acid(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
+# Класс травы
+class Grass(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load('images/Grass_1.png')
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
 world_data = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [2, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-    [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0],
     [0, 0, 0, 3, 3, 3, 3, 0, 0, 0, 0, 0, 3, 0, 0, 0],
     [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
     [1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -301,8 +333,8 @@ world_data = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0],
-    [2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6, 3, 3, 3, 3, 3]
+    [0, 0, 0, 7, 7, 0, 0, 0, 0, 0, 0, 7, 7, 4, 0, 0],
+    [2, 2, 3, 3, 3, 2, 2, 6, 6, 6, 6, 3, 3, 3, 3, 3]
 ]
 
 # Объявляем игрока и мир
@@ -311,11 +343,14 @@ player = Player(10, screen_height - 150)
 enemy_group = pygame.sprite.Group()
 star_group = pygame.sprite.Group()
 acid_group = pygame.sprite.Group()
+grass_group = pygame.sprite.Group()
 
 world = World(world_data)
 
 # Объявляем кнопки
 restart_button = Button(100, screen_height // 2 + 200, restart_img1)
+start_button = Button(100, screen_height // 2 + 200, start_img)
+exit_button = Button(400, screen_height // 2 + 200, exit_img)
 
 # Запускаем игровой цикл
 run = True
@@ -323,27 +358,36 @@ while run:
 
     clock.tick(fps)
 
-    screen.blit(bg_img, (0, 0))
+    if main_menu:
+        screen.blit(menu_frame_img, (0, 0))
+        if exit_button.draw():
+            run = False
+        if start_button.draw():
+            main_menu = False
+    else:
+        screen.blit(bg_img, (0, 0))
 
-    if game_over == 0:
-        enemy_group.update()
-    enemy_group.draw(screen)
+        if game_over == 0:
+            enemy_group.update()
+        enemy_group.draw(screen)
 
-    world.draw()
+        world.draw()
 
-    if game_over == 0:
-        star_group.update()
-    star_group.draw(screen)
-    acid_group.draw(screen)
+        if game_over == 0:
+            star_group.update()
+        star_group.draw(screen)
+        acid_group.draw(screen)
 
-    draw_grid()
+        draw_grid()
 
-    game_over = player.update(game_over)
+        game_over = player.update(game_over)
 
-    if game_over == -1:
-        if restart_button.draw():
-            game_over = 0
-            player.reset(10, screen_height - 150)
+        grass_group.draw(screen)
+
+        if game_over == -1:
+            if restart_button.draw():
+                game_over = 0
+                player.reset(10, screen_height - 150)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
