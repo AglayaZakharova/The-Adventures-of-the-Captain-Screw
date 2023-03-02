@@ -13,7 +13,8 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Платформер")
 bg_img = pygame.image.load('images/Background.png')
 restart_img = pygame.image.load('images/Restart_btn.png')
-restart_img1 = pygame.transform.scale(restart_img, (140, 70))
+restart_img1 = pygame.transform.scale(restart_img, (270, 80))
+menu_frame_img = pygame.image.load('images/Menu_frame.png')
 
 # Настройка сетки (нужна для удобного построения уровня)
 tile_width = 64
@@ -86,38 +87,30 @@ class Button:
     def __init__(self, x, y, image):
         self.image = image
         self.rect = self.image.get_rect()
-        self.rect.y = x
+        self.rect.x = x
         self.rect.y = y
+        self.clicked = False
 
     def draw(self):
+        action = False
+        # Проверяем нажатие на кнопку
+        pos = pygame.mouse.get_pos()
+        if self.rect.collidepoint(pos):
+            if pygame.mouse.get_pressed()[0] and not self.clicked:
+                self.clicked = True
+                action = True
+        if not pygame.mouse.get_pressed()[0]:
+            self.clicked = False
+
         screen.blit(self.image, self.rect)
+
+        return action
 
 
 # Класс игрока
 class Player:
     def __init__(self, x, y):
-        self.images_right = []
-        self.images_left = []
-        self.index = 0
-        self.counter = 0
-        for num in range(1, 4):
-            img_right = pygame.image.load(f'images/Captain{num}.png')
-            img_right = pygame.transform.scale(img_right, (48, 96))
-            img_left = pygame.transform.flip(img_right, True, False)
-            self.images_right.append(img_right)
-            self.images_left.append(img_left)
-        self.image = self.images_right[self.index]
-        img_dead = pygame.image.load('images/Dead_Captain.png')
-        self.dead_image = pygame.transform.scale(img_dead, (48, 96))
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-        self.width = self.image.get_width()
-        self.height = self.image.get_height()
-        # Скорость
-        self.vel_y = 0
-        self.jumped = False
-        self.direction = 0
+        self.reset(x, y)
 
     def update(self, game_over):
         dx = 0
@@ -127,7 +120,7 @@ class Player:
         if game_over == 0:
             # Добавляем управление
             key = pygame.key.get_pressed()
-            if key[pygame.K_SPACE] and not self.jumped:
+            if key[pygame.K_SPACE] and not self.jumped and not self.in_air:
                 self.vel_y = -20
                 self.jumped = True
             if not key[pygame.K_SPACE]:
@@ -165,6 +158,7 @@ class Player:
                 self.vel_y = 4
             dy += self.vel_y
 
+            self.in_air = True
             # Проверяем препятствия
             for tile in world.tile_list:
                 # По горизонтали
@@ -180,6 +174,7 @@ class Player:
                     elif self.vel_y >= 0:
                         dy = tile[1].top - self.rect.bottom
                         self.vel_y = 0
+                        self.in_air = False
 
             self.rect.x += dx
             self.rect.y += dy
@@ -212,6 +207,32 @@ class Player:
         pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
         return game_over
+
+    # Перезапуск
+    def reset(self, x, y):
+        self.images_right = []
+        self.images_left = []
+        self.index = 0
+        self.counter = 0
+        for num in range(1, 4):
+            img_right = pygame.image.load(f'images/Captain{num}.png')
+            img_right = pygame.transform.scale(img_right, (48, 96))
+            img_left = pygame.transform.flip(img_right, True, False)
+            self.images_right.append(img_right)
+            self.images_left.append(img_left)
+        self.image = self.images_right[self.index]
+        img_dead = pygame.image.load('images/Dead_Captain.png')
+        self.dead_image = pygame.transform.scale(img_dead, (48, 96))
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+        # Скорость
+        self.vel_y = 0
+        self.jumped = False
+        self.direction = 0
+        self.in_air = True
 
 # Класс врагов
 class Enemy(pygame.sprite.Sprite):
@@ -293,7 +314,8 @@ acid_group = pygame.sprite.Group()
 
 world = World(world_data)
 
-restart_button = Button(60, screen_height // 2 + 100, restart_img1)
+# Объявляем кнопки
+restart_button = Button(100, screen_height // 2 + 200, restart_img1)
 
 # Запускаем игровой цикл
 run = True
@@ -319,7 +341,9 @@ while run:
     game_over = player.update(game_over)
 
     if game_over == -1:
-        restart_button.draw()
+        if restart_button.draw():
+            game_over = 0
+            player.reset(10, screen_height - 150)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
