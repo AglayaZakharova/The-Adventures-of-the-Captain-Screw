@@ -1,12 +1,15 @@
 import pygame
 from pygame.locals import *
+import pickle
+from os import path
+
 
 pygame.init()
 
 clock = pygame.time.Clock()
 fps = 90
 
-# Настройки экрана
+# Настройки экрана, загрузка изображений
 screen_width = 1024
 screen_height = 768
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -15,9 +18,9 @@ bg_img = pygame.image.load('images/Background.png')
 restart_img = pygame.image.load('images/Restart_btn.png')
 restart_img1 = pygame.transform.scale(restart_img, (270, 80))
 menu_frame_img = pygame.image.load('images/Menu_frame.png')
+finish_frame_img = pygame.image.load('images/Finish_menu.png')
 start_img = pygame.image.load('images/Start_btn.png')
 exit_img = pygame.image.load('images/Exit_btn.png')
-
 
 # Настройка сетки (нужна для удобного построения уровня)
 tile_width = 64
@@ -26,12 +29,32 @@ tile_height = 48
 game_over = 0
 
 main_menu = True
+level = 1
+max_levels = 5
 
 
 def draw_grid():
     for line in range(0, 17):
         pygame.draw.line(screen, (255, 255, 0), (0, line * tile_height), (screen_width, line * tile_height), 1)
         pygame.draw.line(screen, (255, 255, 0), (line * tile_width, 0), (line * tile_width, screen_width), 1)
+
+
+# Функция перезапуска уровня
+def reset_level(level):
+    global world
+    player.reset(10, screen_height - 150)
+    enemy_group.empty()
+    star_group.empty()
+    grass_group.empty()
+    acid_group.empty()
+    space_ship_group.empty()
+    lever_group.empty()
+    if path.exists(f'levels/level_{level}_data'):
+        level_file = open(f'levels/level_{level}_data', 'rb')
+        world_data = pickle.load(level_file)
+        world = World(world_data)
+
+    return world
 
 
 # Класс игрового мира
@@ -74,6 +97,16 @@ class World:
                     grass_group.add(grass)
                     col_count += 1
                     continue
+                elif tile == 8:
+                    space_ship = SpaceShip(col_count * tile_width, row_count * tile_height)
+                    space_ship_group.add(space_ship)
+                    col_count += 1
+                    continue
+                elif tile == 9:
+                    lever = Lever(col_count * tile_width, row_count * tile_height)
+                    lever_group.add(lever)
+                    col_count += 1
+                    continue
                 else:
                     col_count += 1
                     continue
@@ -89,7 +122,7 @@ class World:
     def draw(self):
         for tile in self.tile_list:
             screen.blit(tile[0], tile[1])
-            pygame.draw.rect(screen, (255, 255, 255), tile[1], 1)
+            # pygame.draw.rect(screen, (255, 255, 255), tile[1], 1)
 
 
 # Класс кнопок
@@ -130,10 +163,10 @@ class Player:
         if game_over == 0:
             # Добавляем управление
             key = pygame.key.get_pressed()
-            if key[pygame.K_SPACE] and not self.jumped and not self.in_air:
+            if key[pygame.K_UP] and not self.jumped and not self.in_air:
                 self.vel_y = -20
                 self.jumped = True
-            if not key[pygame.K_SPACE]:
+            if not key[pygame.K_UP]:
                 self.jumped = False
             if key[pygame.K_LEFT]:
                 if self.speed_change:
@@ -218,6 +251,13 @@ class Player:
                 self.speed_change = True
             else:
                 self.speed_change = False
+            # Проверяем столкновение с космическим кораблем
+            if pygame.sprite.spritecollide(self, space_ship_group, False) and self.on:
+                game_over = 1
+            # Проверяем нажатие рычага
+            if pygame.sprite.spritecollide(self, lever_group, False) and key[pygame.K_SPACE]:
+                self.on = True
+
         elif game_over == -1:
             self.image = self.dead_image
             if self.rect.y > 50:
@@ -225,7 +265,7 @@ class Player:
 
         # Помещаем игрока на экран
         screen.blit(self.image, self.rect)
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
+        # pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
         return game_over
 
@@ -255,6 +295,7 @@ class Player:
         self.direction = 0
         self.in_air = True
         self.speed_change = False
+        self.on = False
 
 # Класс врагов
 class Enemy(pygame.sprite.Sprite):
@@ -275,7 +316,7 @@ class Enemy(pygame.sprite.Sprite):
             self.move_direction *= -1
             self.move_counter *= -1
 
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
+        # pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
 
 # Класс звездочки
@@ -296,8 +337,6 @@ class Star(pygame.sprite.Sprite):
         if self.rect.left <= 0:
             self.move_direction *= -1
 
-        pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
-
 
 # Класс кислоты
 class Acid(pygame.sprite.Sprite):
@@ -309,6 +348,7 @@ class Acid(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
+
 # Класс травы
 class Grass(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -318,24 +358,44 @@ class Grass(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
-world_data = [
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [2, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-    [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0],
-    [0, 0, 0, 3, 3, 3, 3, 0, 0, 0, 0, 0, 3, 0, 0, 0],
-    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2],
-    [1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 4, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 2, 0, 0, 0],
-    [3, 3, 3, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 7, 7, 0, 0, 0, 0, 0, 0, 7, 7, 4, 0, 0],
-    [2, 2, 3, 3, 3, 2, 2, 6, 6, 6, 6, 3, 3, 3, 3, 3]
-]
+
+# Класс космического корябля - выход с уровня
+class SpaceShip(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image_off = pygame.image.load('images/Space_ship_off.png')
+        self.image_on = pygame.image.load('images/Space_ship_on.png')
+        self.image = self.image_off
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+    def update(self):
+        if player.on:
+            self.image = self.image_on
+        else:
+            self.image = self.image_off
+
+
+# Класс рычага
+class Lever(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image_off = pygame.image.load('images/Lever_off.png')
+        self.image_on = pygame.image.load('images/Lever_on.png')
+        self.image = self.image_off
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+    def update(self):
+        if player.on:
+            self.image = self.image_on
+        else:
+            self.image = self.image_off
+
+        # pygame.draw.rect(screen, (255, 255, 255), self.rect, 1)
+
 
 # Объявляем игрока и мир
 player = Player(10, screen_height - 150)
@@ -345,7 +405,14 @@ star_group = pygame.sprite.Group()
 acid_group = pygame.sprite.Group()
 grass_group = pygame.sprite.Group()
 
-world = World(world_data)
+space_ship_group = pygame.sprite.Group()
+lever_group = pygame.sprite.Group()
+
+# Загружаем мир из файла и создаем его в игре
+if path.exists(f'levels/level_{level}_data'):
+    level_file = open(f'levels/level_{level}_data', 'rb')
+    world_data = pickle.load(level_file)
+    world = World(world_data)
 
 # Объявляем кнопки
 restart_button = Button(100, screen_height // 2 + 200, restart_img1)
@@ -367,6 +434,11 @@ while run:
     else:
         screen.blit(bg_img, (0, 0))
 
+        space_ship_group.draw(screen)
+        space_ship_group.update()
+        lever_group.draw(screen)
+        lever_group.update()
+
         if game_over == 0:
             enemy_group.update()
         enemy_group.draw(screen)
@@ -378,7 +450,7 @@ while run:
         star_group.draw(screen)
         acid_group.draw(screen)
 
-        draw_grid()
+        # draw_grid()
 
         game_over = player.update(game_over)
 
@@ -387,7 +459,21 @@ while run:
         if game_over == -1:
             if restart_button.draw():
                 game_over = 0
-                player.reset(10, screen_height - 150)
+                world_data = []
+                world = reset_level(level)
+                game_over = 0
+
+        if game_over == 1:
+            level += 1
+            if level <= max_levels:
+                world_data = []
+                world = reset_level(level)
+                game_over = 0
+            else:
+                screen.blit(finish_frame_img, (0, 0))
+                if exit_button.draw():
+                    run = False
+
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
